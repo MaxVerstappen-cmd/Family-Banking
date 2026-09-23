@@ -1,0 +1,6 @@
+{
+  "name": "Heritage Family Banking",
+  "description": "Smart, secure family banking hub with youth debit card controls, automated allowances, chore bounties, and parental oversight.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
