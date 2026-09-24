@@ -1,10 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { ScreenId, ChildAccount, TaskItem, MoneyRequestItem, TransactionItem } from './types';
+import {
+  ScreenId,
+  ChildAccount,
+  TaskItem,
+  MoneyRequestItem,
+  TransactionItem,
+  GoalItem,
+  FamilyNotificationItem,
+} from './types';
 import {
   INITIAL_CHILDREN,
   INITIAL_TASKS,
   INITIAL_MONEY_REQUESTS,
   INITIAL_TRANSACTIONS,
+  INITIAL_GOALS,
+  INITIAL_FAMILY_NOTIFICATIONS,
   PARENT_PROFILE,
 } from './data/mockData';
 import { Header } from './components/Header';
@@ -18,7 +28,12 @@ import { ChildDetailView } from './views/ChildDetailView';
 import { TasksView } from './views/TasksView';
 import { ApprovalsView } from './views/ApprovalsView';
 import { PaymentsView } from './views/PaymentsView';
+import { TransferReviewView } from './views/TransferReviewView';
+import { TransferSuccessView } from './views/TransferSuccessView';
 import { InsightsView } from './views/InsightsView';
+import { GoalsView } from './views/GoalsView';
+import { AlertsView } from './views/AlertsView';
+import { AlertSettingsView } from './views/AlertSettingsView';
 import { SpendingLimitsView } from './views/SpendingLimitsView';
 import { ConfigureAppView } from './views/ConfigureAppView';
 
@@ -37,6 +52,36 @@ export default function App() {
   const [tasks, setTasks] = useState<TaskItem[]>(INITIAL_TASKS);
   const [moneyRequests, setMoneyRequests] = useState<MoneyRequestItem[]>(INITIAL_MONEY_REQUESTS);
   const [transactions, setTransactions] = useState<TransactionItem[]>(INITIAL_TRANSACTIONS);
+  const [goals, setGoals] = useState<GoalItem[]>(INITIAL_GOALS);
+  const [notifications, setNotifications] = useState<FamilyNotificationItem[]>(INITIAL_FAMILY_NOTIFICATIONS);
+
+  // Goal update handler
+  const handleUpdateGoal = (goalId: string, updates: Partial<GoalItem>) => {
+    setGoals((prev) =>
+      prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g))
+    );
+  };
+
+  const handleAddGoal = (newGoal: GoalItem) => {
+    setGoals((prev) => [newGoal, ...prev]);
+  };
+
+  // Transfer flow state
+  const [transferDetails, setTransferDetails] = useState<{
+    childId: string;
+    childName: string;
+    amount: number;
+    reason: string;
+    note: string;
+    isRecurring: boolean;
+  }>({
+    childId: 'luca',
+    childName: 'Luca Borg',
+    amount: 25.0,
+    reason: 'Bookstore / School',
+    note: 'For science project supplies & lunch',
+    isRecurring: false,
+  });
 
   // Toast System
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon?: string }>({
@@ -272,13 +317,70 @@ export default function App() {
             childrenAccounts={childrenAccounts}
             onNavigate={setCurrentScreen}
             onShowToast={showToast}
-            onSendMoney={handleSendMoney}
+            onSetTransferState={setTransferDetails}
+          />
+        )}
+
+        {currentScreen === 'transfer_review' && (
+          <TransferReviewView
+            transferDetails={transferDetails}
+            onNavigate={setCurrentScreen}
+            onShowToast={showToast}
+            onConfirmTransfer={() => {
+              handleSendMoney(
+                transferDetails.childId,
+                transferDetails.amount,
+                transferDetails.note,
+                transferDetails.isRecurring
+              );
+              showToast(
+                `Authorized with Face ID! €${transferDetails.amount.toFixed(2)} sent to ${transferDetails.childName}!`,
+                'check_circle'
+              );
+            }}
+          />
+        )}
+
+        {currentScreen === 'transfer_success' && (
+          <TransferSuccessView
+            transferDetails={transferDetails}
+            onNavigate={setCurrentScreen}
+            onShowToast={showToast}
           />
         )}
 
         {currentScreen === 'insights' && (
           <InsightsView
             childrenAccounts={childrenAccounts}
+            onNavigate={setCurrentScreen}
+            onShowToast={showToast}
+          />
+        )}
+
+        {currentScreen === 'goals' && (
+          <GoalsView
+            childrenAccounts={childrenAccounts}
+            goals={goals}
+            onNavigate={setCurrentScreen}
+            onShowToast={showToast}
+            onUpdateGoal={handleUpdateGoal}
+            onAddGoal={handleAddGoal}
+          />
+        )}
+
+        {currentScreen === 'alerts' && (
+          <AlertsView
+            notifications={notifications}
+            onNavigate={setCurrentScreen}
+            onShowToast={showToast}
+            onApproveMoneyRequest={(reqId, amount) => {
+              handleSendMoney('luca', amount, 'Money Request Approved', false);
+            }}
+          />
+        )}
+
+        {currentScreen === 'alert_settings' && (
+          <AlertSettingsView
             onNavigate={setCurrentScreen}
             onShowToast={showToast}
           />

@@ -5,7 +5,12 @@ export type ScreenId =
   | 'tasks'
   | 'approvals'
   | 'payments'
+  | 'transfer_review'
+  | 'transfer_success'
   | 'insights'
+  | 'goals'
+  | 'alerts'
+  | 'alert_settings'
   | 'spending_limits'
   | 'configure_app'
   | 'onboarding_welcome'
@@ -98,4 +103,47 @@ export interface ChildAppFeatures {
   card: boolean;
   payfriends: boolean;
   online: boolean;
+}
+
+export interface GoalItem {
+  id: string;
+  childId: string;
+  title: string;
+  category: string;
+  icon: string;
+  currentAmount: number;
+  targetAmount: number;
+  targetDate: string;
+  weeksRemaining?: number;
+  status: 'on_track' | 'needs_attention' | 'completed';
+  statusLabel?: string;
+  weeklyNeeded?: number;
+  allowanceDeductionPercent?: number;
+  allowanceDeductionAmount?: number;
+  parentMatchEnabled: boolean;
+  parentMatchPercent: number; // e.g. 50
+  parentMatchMax: number; // e.g. 50
+  totalMatchedSoFar: number;
+  isArchived?: boolean;
+}
+
+export interface FamilyNotificationItem {
+  id: string;
+  type:
+    | 'limit_warning'
+    | 'money_request'
+    | 'card_declined'
+    | 'goal_milestone'
+    | 'task_completed'
+    | 'card_purchase';
+  childName: string;
+  childAge: number;
+  childId: string;
+  title: string;
+  time: string;
+  day: 'today' | 'yesterday';
+  description: string;
+  amount?: number;
+  isRead: boolean;
+  metadata?: Record<string, any>;
 }

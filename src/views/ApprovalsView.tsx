@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScreenId, TaskItem, MoneyRequestItem } from '../types';
 
 interface ApprovalsViewProps {
@@ -12,6 +12,63 @@ interface ApprovalsViewProps {
   onDeclineMoney: (reqId: string) => void;
 }
 
+interface PendingCheckout {
+  id: string;
+  childName: string;
+  childAge: number;
+  childInitials: string;
+  avatarBg: string;
+  cardLabel: string;
+  remainingSeconds: number;
+  merchantName: string;
+  merchantCategory: string;
+  merchantIcon: string;
+  amount: number;
+  requestedAgo: string;
+  triggerType: 'threshold' | 'safety';
+  triggerTitle: string;
+  triggerDesc: string;
+}
+
+const INITIAL_CHECKOUTS: PendingCheckout[] = [
+  {
+    id: 'chk-1',
+    childName: 'Luca Borg',
+    childAge: 12,
+    childInitials: 'LB',
+    avatarBg: 'bg-[#0091ff]',
+    cardLabel: 'Mastercard •••• 4819',
+    remainingSeconds: 762, // 12:42
+    merchantName: 'PlayStation Store EU',
+    merchantCategory: 'Digital Gaming • Sony Network',
+    merchantIcon: 'sports_esports',
+    amount: 34.99,
+    requestedAgo: 'Requested 2m ago',
+    triggerType: 'threshold',
+    triggerTitle: 'Threshold Trigger: Transaction exceeds €10.00 allowance limit',
+    triggerDesc:
+      "Daily limit headroom is currently €17.60. Completing this purchase will exceed Luca's configured daily cap by €17.39.",
+  },
+  {
+    id: 'chk-2',
+    childName: 'Sofia Borg',
+    childAge: 9,
+    childInitials: 'SB',
+    avatarBg: 'bg-[#ff7b1a]',
+    cardLabel: 'Virtual Card •••• 1042',
+    remainingSeconds: 509, // 08:29
+    merchantName: 'Waterstones Books',
+    merchantCategory: 'Books & Stationery • Web Checkout',
+    merchantIcon: 'menu_book',
+    amount: 22.50,
+    requestedAgo: 'Requested 6m ago',
+    triggerType: 'safety',
+    triggerTitle: 'Safety Notice: Web purchase above €15.00 ceiling',
+    triggerDesc:
+      'Online e-commerce control enforced. Merchant verified via 3D Secure v2. Child balance remains sufficient (€48.30).',
+  },
+];
+
 export const ApprovalsView: React.FC<ApprovalsViewProps> = ({
   tasks,
   moneyRequests,
@@ -22,316 +79,417 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({
   onApproveMoney,
   onDeclineMoney,
 }) => {
-  const [filterType, setFilterType] = useState<'all' | 'tasks' | 'money'>('all');
-  const [inspectPhoto, setInspectPhoto] = useState<{ url: string; title: string; meta: string } | null>(null);
-  const [revisionTask, setRevisionTask] = useState<TaskItem | null>(null);
-  const [revisionFeedback, setRevisionFeedback] = useState('');
+  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
+  const [checkouts, setCheckouts] = useState<PendingCheckout[]>(INITIAL_CHECKOUTS);
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [approvingItem, setApprovingItem] = useState<PendingCheckout | null>(null);
+  const [subview, setSubview] = useState<'merchants' | 'chores'>('merchants');
 
-  const pendingTasks = tasks.filter((t) => t.status === 'pending_review');
-  const pendingMoney = moneyRequests.filter((r) => r.status === 'pending');
-  const totalCount = pendingTasks.length + pendingMoney.length;
+  // Countdown timer simulation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCheckouts((prev) =>
+        prev.map((item) => ({
+          ...item,
+          remainingSeconds: Math.max(0, item.remainingSeconds - 1),
+        }))
+      );
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleSendRevision = () => {
-    if (!revisionTask) return;
-    onRejectTask(revisionTask.id);
-    onShowToast(`Revision note sent to ${revisionTask.childName}: "${revisionFeedback || 'Please retidy and resubmit photo'}"`, 'edit_note');
-    setRevisionTask(null);
-    setRevisionFeedback('');
+  const formatTimer = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
+  const handleApproveWithFaceId = (item: PendingCheckout) => {
+    setApprovingItem(item);
+    setShowBiometricModal(true);
+
+    setTimeout(() => {
+      setShowBiometricModal(false);
+      setCheckouts((prev) => prev.filter((c) => c.id !== item.id));
+      onShowToast(
+        `Authorized with Face ID! 3DS Cryptogram released for €${item.amount.toFixed(2)} to ${item.merchantName}`,
+        'fingerprint'
+      );
+    }, 1100);
+  };
+
+  const handleDecline = (item: PendingCheckout) => {
+    setCheckouts((prev) => prev.filter((c) => c.id !== item.id));
+    onShowToast(`Declined €${item.amount.toFixed(2)} transaction at ${item.merchantName}. Card locked for this merchant.`, 'cancel');
+  };
+
+  const pendingTasks = tasks.filter((t) => t.status === 'pending_review');
+
   return (
-    <div className="flex flex-col w-full px-4 space-y-5 pb-20">
-      {/* Title & Live Status Indicator */}
-      <div className="pt-2 flex flex-col space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-[#00a472] animate-pulse"></span>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            Live Approval Queue
-          </span>
+    <div className="flex flex-col w-full px-4 space-y-4 pb-24">
+      {/* Header breadcrumb & Title (Matching Image 2) */}
+      <div className="pt-2">
+        <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase text-slate-400">
+          <span>Parental Controls</span>
+          <span className="text-slate-300">•</span>
+          <span className="text-[#ae3026]">Transaction Authorization</span>
         </div>
-        <h1 className="text-2xl font-bold text-[#0b2a4a]">Approvals &amp; Requests</h1>
-        <p className="text-xs text-slate-500">
-          {totalCount > 0
-            ? `${totalCount} item${totalCount > 1 ? 's' : ''} awaiting your sign-off`
-            : 'All caught up! No pending approvals.'}
+
+        <div className="flex items-center justify-between mt-1">
+          <h1 className="text-2xl font-extrabold text-[#0b1c30]">Approvals</h1>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200/60">
+            <span className="w-2 h-2 rounded-full bg-[#ae3026] animate-pulse"></span>
+            <span className="text-[11px] font-bold tracking-wider uppercase text-[#ae3026]">
+              {checkouts.length} ACTION REQUIRED
+            </span>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+          Real-time payment attempts paused at merchant checkout requiring Maria Borg's authorization within 15 minutes.
         </p>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 bg-[#eff4ff] p-1 rounded-xl">
+      {/* Primary Mode Selector: 3DS Checkout Approvals vs Family Chores */}
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <div className="flex-1 bg-[#eff4ff] p-1 rounded-2xl flex items-center shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('pending')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'pending'
+                ? 'bg-white text-[#0b2a4a] shadow-xs'
+                : 'text-slate-600 hover:text-[#0b2a4a]'
+            }`}
+          >
+            <span>Pending</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-[#0b2a4a] text-white text-[10px] font-bold">
+              {checkouts.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'history'
+                ? 'bg-white text-[#0b2a4a] shadow-xs'
+                : 'text-slate-600 hover:text-[#0b2a4a]'
+            }`}
+          >
+            <span>History</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold">
+              14
+            </span>
+          </button>
+        </div>
+
+        {/* Option to also view chores */}
         <button
           type="button"
-          onClick={() => setFilterType('all')}
-          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            filterType === 'all'
-              ? 'bg-white text-[#0b2a4a] shadow-xs'
-              : 'text-slate-600 hover:text-[#0b2a4a]'
-          }`}
+          onClick={() => setSubview(subview === 'merchants' ? 'chores' : 'merchants')}
+          className="px-3 py-2 rounded-2xl border border-slate-200 bg-white text-xs font-bold text-[#0b2a4a] hover:bg-slate-50 shrink-0 shadow-2xs flex items-center gap-1"
         >
-          All ({totalCount})
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilterType('tasks')}
-          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            filterType === 'tasks'
-              ? 'bg-white text-[#0b2a4a] shadow-xs'
-              : 'text-slate-600 hover:text-[#0b2a4a]'
-          }`}
-        >
-          Tasks ({pendingTasks.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilterType('money')}
-          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            filterType === 'money'
-              ? 'bg-white text-[#0b2a4a] shadow-xs'
-              : 'text-slate-600 hover:text-[#0b2a4a]'
-          }`}
-        >
-          Money ({pendingMoney.length})
+          <span className="material-symbols-outlined text-[16px]">
+            {subview === 'merchants' ? 'task_alt' : 'credit_card'}
+          </span>
+          <span>{subview === 'merchants' ? `Chores (${pendingTasks.length})` : 'Cards (2)'}</span>
         </button>
       </div>
 
-      {totalCount === 0 ? (
-        <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
-          <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-            <span className="material-symbols-outlined text-[32px]">task_alt</span>
+      {/* If user toggled Chores queue view */}
+      {subview === 'chores' ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-[#0b2a4a]">Chores Verification Queue</h3>
+            <span className="text-xs text-slate-400">{pendingTasks.length} waiting</span>
           </div>
-          <h3 className="text-base font-bold text-[#0b2a4a]">Queue is empty!</h3>
-          <p className="text-xs text-slate-500">All chores rewarded and top-ups reviewed.</p>
-        </div>
-      ) : null}
 
-      {/* Pending Tasks Section */}
-      {(filterType === 'all' || filterType === 'tasks') &&
-        pendingTasks.map((task) => (
-          <div
-            key={task.id}
-            className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200/80 space-y-3"
-          >
-            {/* Header info */}
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                  {task.childName === 'Luca' ? 'LB' : 'SB'}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-[#0b2a4a]">{task.childName}</span>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-[10px] uppercase font-bold text-[#00a472]">{task.category}</span>
-                  </div>
-                  <h3 className="text-sm font-bold text-[#0b2a4a] truncate">{task.title}</h3>
-                </div>
-              </div>
-              <span className="text-sm font-bold text-[#00a472] font-mono">{task.rewardText}</span>
+          {pendingTasks.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
+              <span className="material-symbols-outlined text-[32px] text-emerald-600">task_alt</span>
+              <p className="text-xs text-slate-500 mt-2">All family chores approved!</p>
             </div>
-
-            {/* Photo verification attachment */}
-            {task.photoUrl && (
-              <div
-                onClick={() =>
-                  setInspectPhoto({
-                    url: task.photoUrl || '',
-                    title: task.title,
-                    meta: `${task.childName} • Verified EXIF Metadata • Today 11:32 AM`,
-                  })
-                }
-                className="relative rounded-xl overflow-hidden border border-slate-200 cursor-pointer group"
-              >
-                <img
-                  src={task.photoUrl}
-                  alt={task.title}
-                  className="w-full h-40 object-cover group-hover:scale-102 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-3">
-                  <div className="flex items-center justify-between w-full text-white text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[16px] text-emerald-400">
-                        verified
-                      </span>
-                      <span className="truncate text-[11px]">{task.proofNote || 'Photo proof attached'}</span>
+          ) : (
+            pendingTasks.map((task) => (
+              <div key={task.id} className="p-4 bg-white rounded-2xl shadow-2xs border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-[#0b2a4a] text-white flex items-center justify-center text-xs font-bold">
+                      {task.childName === 'Luca' ? 'LB' : 'SB'}
                     </div>
-                    <span className="text-[10px] font-bold underline text-sky-200">Inspect</span>
+                    <div>
+                      <h4 className="text-xs font-bold text-[#0b2a4a]">{task.title}</h4>
+                      <p className="text-[11px] text-slate-400">{task.childName} • {task.category}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-[#00a472] font-mono">{task.rewardText}</span>
+                </div>
+
+                {task.photoUrl && (
+                  <img
+                    src={task.photoUrl}
+                    alt={task.title}
+                    className="w-full h-32 rounded-xl object-cover border border-slate-100"
+                  />
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRejectTask(task.id);
+                      onShowToast(`Sent revision request to ${task.childName}`, 'replay');
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold"
+                  >
+                    Needs Fix
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onApproveTask(task.id);
+                      onShowToast(`Approved €${task.rewardValue.toFixed(2)} for ${task.childName}!`, 'check_circle');
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-[#0b2a4a] text-white text-xs font-bold"
+                  >
+                    Accept &amp; Pay
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : activeTab === 'pending' ? (
+        /* PENDING 3DS CARDS (Exact Image 2) */
+        <div className="space-y-4">
+          {checkouts.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+              <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                <span className="material-symbols-outlined text-[30px]">check_circle</span>
+              </div>
+              <h3 className="text-sm font-bold text-[#0b2a4a]">No Pending 3DS Authorizations</h3>
+              <p className="text-xs text-slate-500">
+                Luca and Sofia do not have any active checkout prompts waiting.
+              </p>
+            </div>
+          ) : (
+            checkouts.map((item) => (
+              <div
+                key={item.id}
+                className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-200/90 space-y-3.5"
+              >
+                {/* Child Header Row & Countdown Timer */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`w-9 h-9 rounded-full ${item.avatarBg} text-white flex items-center justify-center font-bold text-xs shadow-2xs`}
+                    >
+                      {item.childInitials}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-[#0b2a4a]">{item.childName}</span>
+                        <span className="text-[11px] text-slate-400">(Age {item.childAge})</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                        <span className="material-symbols-outlined text-[14px]">credit_card</span>
+                        <span>{item.cardLabel}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Red/Amber Hourglass Timer Badge */}
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200/70 text-[#ae3026]">
+                    <span className="material-symbols-outlined text-[14px] animate-pulse">hourglass_top</span>
+                    <span className="text-xs font-mono font-bold tracking-wider">
+                      {formatTimer(item.remainingSeconds)}
+                    </span>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* Actions */}
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setRevisionTask(task)}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
-              >
-                Needs Fix / Revision
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onApproveTask(task.id);
-                  onShowToast(`Approved! €${task.rewardValue.toFixed(2)} sent to ${task.childName}!`, 'check_circle');
-                }}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-[#0b2a4a] hover:bg-[#00152d] text-white text-xs font-bold shadow-xs active:scale-95 transition-all flex items-center justify-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[16px]">check</span>
-                <span>Accept {task.rewardText}</span>
-              </button>
-            </div>
-          </div>
-        ))}
-
-      {/* Pending Money Requests Section */}
-      {(filterType === 'all' || filterType === 'money') &&
-        pendingMoney.map((req) => (
-          <div
-            key={req.id}
-            className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200/80 space-y-3"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-[#ffdad5]/60 text-[#ae3026] flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[20px]">wallet</span>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-[#0b2a4a]">{req.childName}</span>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-[10px] uppercase font-bold text-slate-500">{req.category}</span>
+                {/* Merchant Box */}
+                <div className="p-3.5 rounded-2xl bg-[#eff4ff] border border-blue-100/70 flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-white text-[#0b2a4a] flex items-center justify-center shrink-0 shadow-2xs">
+                      <span className="material-symbols-outlined text-[22px]">{item.merchantIcon}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-[#0b2a4a] truncate">{item.merchantName}</h4>
+                      <p className="text-[11px] text-slate-500 truncate">{item.merchantCategory}</p>
+                    </div>
                   </div>
-                  <h3 className="text-sm font-bold text-[#0b2a4a]">Top-up Requested: €{req.amount.toFixed(2)}</h3>
+
+                  <div className="text-right shrink-0">
+                    <span className="text-xl font-extrabold text-[#0b2a4a] font-mono tracking-tight block">
+                      €{item.amount.toFixed(2)}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">{item.requestedAgo}</span>
+                  </div>
+                </div>
+
+                {/* Warning Callout Box */}
+                {item.triggerType === 'threshold' ? (
+                  <div className="p-3.5 rounded-2xl bg-[#ffdad5]/40 border border-rose-200/60 flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-[#ae3026] shrink-0 mt-0.5">
+                      warning
+                    </span>
+                    <div className="text-xs text-slate-700 leading-snug">
+                      <span className="font-bold text-[#ae3026] block">{item.triggerTitle}</span>
+                      <p className="mt-0.5 text-slate-600 leading-relaxed">{item.triggerDesc}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-[#eff4ff] border border-blue-200/60 flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-blue-600 shrink-0 mt-0.5">
+                      security
+                    </span>
+                    <div className="text-xs text-slate-700 leading-snug">
+                      <span className="font-bold text-[#0b2a4a] block">{item.triggerTitle}</span>
+                      <p className="mt-0.5 text-slate-600 leading-relaxed">{item.triggerDesc}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons: Decline & Approve with Face ID */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleDecline(item)}
+                    className="h-12 rounded-2xl bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-2xs"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                    <span>Decline</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApproveWithFaceId(item)}
+                    className="h-12 rounded-2xl bg-[#0b2a4a] hover:bg-[#00152d] text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">fingerprint</span>
+                    <span>Approve with Face ID</span>
+                  </button>
                 </div>
               </div>
-              <span className="text-sm font-bold text-[#0b2a4a] font-mono">€{req.amount.toFixed(2)}</span>
-            </div>
-
-            <div className="p-3 bg-[#eff4ff] rounded-xl space-y-2">
-              <p className="text-xs text-slate-700 italic">"{req.reason}"</p>
-              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-blue-100">
-                <span>Card Balance: €14.50</span>
-                <span className="text-emerald-700 font-semibold">Remaining daily headroom: €17.60 (Safe)</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  onDeclineMoney(req.id);
-                  onShowToast(`Request declined. ${req.childName} notified.`, 'cancel');
-                }}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-red-50 text-[#ba1a1a] text-xs font-bold transition-colors"
-              >
-                Decline
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onApproveMoney(req.id);
-                  onShowToast(`€${req.amount.toFixed(2)} transferred to ${req.childName}'s card!`, 'send_money');
-                }}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-[#00a472] hover:bg-emerald-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all flex items-center justify-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[16px]">send_money</span>
-                <span>Pay €{req.amount.toFixed(2)}</span>
-              </button>
-            </div>
+            ))
+          )}
+        </div>
+      ) : (
+        /* HISTORY TAB (14 items summary) */
+        <div className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-200 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <span className="text-xs font-bold text-[#0b2a4a]">All 14 Authorizations</span>
+            <span className="text-[11px] text-slate-400">Export CSV</span>
           </div>
-        ))}
-
-      {/* Inspection Lightbox Modal */}
-      {inspectPhoto && (
-        <div
-          onClick={() => setInspectPhoto(null)}
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative max-w-lg w-full bg-white rounded-2xl overflow-hidden shadow-2xl space-y-3"
-          >
-            <div className="p-3 flex items-center justify-between border-b border-slate-100">
-              <span className="text-xs font-bold text-[#0b2a4a] truncate">{inspectPhoto.title}</span>
-              <button
-                type="button"
-                onClick={() => setInspectPhoto(null)}
-                className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"
-              >
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
-            </div>
-
-            <img
-              src={inspectPhoto.url}
-              alt={inspectPhoto.title}
-              className="w-full max-h-[60vh] object-contain bg-slate-900"
-            />
-
-            <div className="p-3 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
-              <span>{inspectPhoto.meta}</span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                Tamper-Free
-              </span>
-            </div>
-          </div>
+          <p className="text-xs text-slate-500">
+            Full 3DS biometric authorization records stored on file for compliance.
+          </p>
         </div>
       )}
 
-      {/* Revision Modal Sheet */}
-      {revisionTask && (
-        <div className="fixed inset-0 z-50 bg-[#00152d]/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
-          <div className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-              <h3 className="text-base font-bold text-[#0b2a4a]">Request Revision</h3>
-              <button
-                type="button"
-                onClick={() => setRevisionTask(null)}
-                className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"
-              >
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
+      {/* Recent Decided Transactions Section (Exact Image 2) */}
+      <section className="bg-white rounded-3xl p-4 shadow-2xs border border-slate-200/80 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#0b2a4a] text-[18px]">history</span>
+            <h3 className="text-sm font-bold text-[#0b2a4a]">Recent Decided Transactions</h3>
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">Last 7 days</span>
+        </div>
+
+        <div className="space-y-2.5 divide-y divide-slate-100">
+          {/* Row 1: Decathlon */}
+          <div className="pt-2 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-slate-100 text-[#0b2a4a] flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">fitness_center</span>
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-[#0b2a4a] truncate">Decathlon Sports • Luca</h4>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full">
+                    <span className="material-symbols-outlined text-[12px]">check</span>
+                    Approved
+                  </span>
+                  <span className="text-[10px] text-slate-400">Today, 14:15</span>
+                </div>
+              </div>
             </div>
+            <span className="text-sm font-bold text-[#0b2a4a] font-mono">€18.00</span>
+          </div>
 
-            <p className="text-xs text-slate-600">
-              Provide feedback for <span className="font-bold">{revisionTask.childName}</span> on why
-              "{revisionTask.title}" needs additional effort.
-            </p>
-
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                'Needs tidier vacuuming',
-                'Photo is blurry, please retake',
-                'Forgot under the bed',
-                'Almost there, empty the trash bin too',
-              ].map((pill) => (
-                <button
-                  key={pill}
-                  type="button"
-                  onClick={() => setRevisionFeedback(pill)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[11px] font-medium text-slate-700"
-                >
-                  {pill}
-                </button>
-              ))}
+          {/* Row 2: Steam Games */}
+          <div className="pt-2 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-slate-100 text-[#0b2a4a] flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">sports_esports</span>
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-[#0b2a4a] truncate">Steam Games EU • Luca</h4>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="flex items-center gap-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded-full">
+                    <span className="material-symbols-outlined text-[12px]">close</span>
+                    Declined
+                  </span>
+                  <span className="text-[10px] text-slate-400">Yesterday, 19:40</span>
+                </div>
+              </div>
             </div>
+            <span className="text-sm font-bold text-[#0b2a4a] font-mono">€49.99</span>
+          </div>
 
-            <textarea
-              rows={3}
-              value={revisionFeedback}
-              onChange={(e) => setRevisionFeedback(e.target.value)}
-              placeholder="Type note to child..."
-              className="w-full p-3 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-[#0b2a4a] focus:outline-none"
-            />
+          {/* Row 3: LEGO Store */}
+          <div className="pt-2 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-slate-100 text-[#0b2a4a] flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">extension</span>
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-[#0b2a4a] truncate">LEGO Store Online • Sofia</h4>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full">
+                    <span className="material-symbols-outlined text-[12px]">check</span>
+                    Approved
+                  </span>
+                  <span className="text-[10px] text-slate-400">28 May</span>
+                </div>
+              </div>
+            </div>
+            <span className="text-sm font-bold text-[#0b2a4a] font-mono">€29.90</span>
+          </div>
+        </div>
+      </section>
 
-            <button
-              type="button"
-              onClick={handleSendRevision}
-              className="w-full py-3 rounded-xl bg-[#0b2a4a] text-white font-bold text-xs shadow-md active:scale-95"
-            >
-              Send Revision Notice to {revisionTask.childName}
-            </button>
+      {/* Instant Biometric Authorization Info Card (Exact Image 2) */}
+      <section className="p-4 rounded-3xl bg-[#eff4ff] border border-blue-200/60 flex items-start gap-3">
+        <div className="w-9 h-9 rounded-xl bg-white text-[#0b2a4a] flex items-center justify-center shrink-0 shadow-2xs">
+          <span className="material-symbols-outlined text-[20px]">verified_user</span>
+        </div>
+        <div className="text-xs leading-relaxed">
+          <span className="font-bold text-[#0b2a4a] block">Instant Biometric Authorization</span>
+          <p className="text-slate-600 mt-0.5 text-[11px] leading-relaxed">
+            Approvals issue instant 3DS authentication cryptograms directly to merchant acquirers. Requests not reviewed within 15 minutes are automatically dropped for safety.
+          </p>
+        </div>
+      </section>
+
+      {/* Face ID Biometric Confirmation Modal */}
+      {showBiometricModal && (
+        <div className="fixed inset-0 z-50 bg-[#00152d]/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-[#eff4ff] text-[#0b2a4a] flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-[36px] animate-pulse">fingerprint</span>
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-[#0b2a4a]">Face ID Authorization</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Authenticating Maria Borg for {approvingItem?.merchantName}...
+              </p>
+            </div>
+            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+              <div className="h-full bg-[#00a472] w-full animate-pulse"></div>
+            </div>
           </div>
         </div>
       )}

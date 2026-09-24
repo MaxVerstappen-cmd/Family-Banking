@@ -362,13 +362,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           <button
             type="button"
-            onClick={() => onNavigate('insights')}
+            onClick={() => onNavigate('goals')}
             className="flex flex-col items-center gap-1.5 p-2 rounded-2xl hover:bg-slate-100 transition-colors group text-center"
           >
             <div className="w-12 h-12 rounded-2xl bg-[#eff4ff] text-[#0b2a4a] flex items-center justify-center shadow-xs group-active:scale-95 transition-transform border border-slate-200/60">
-              <span className="material-symbols-outlined text-[24px]">savings</span>
+              <span className="material-symbols-outlined text-[24px]">flag</span>
             </div>
-            <span className="text-[11px] font-medium text-slate-700">Savings Goals</span>
+            <span className="text-[11px] font-medium text-slate-700">Child Goals</span>
           </button>
 
           <button

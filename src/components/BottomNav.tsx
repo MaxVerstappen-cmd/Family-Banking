@@ -12,24 +12,37 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   onNavigate,
   tasksBadgeCount = 2,
 }) => {
-  // Hide bottom nav in deep onboarding steps to match native stack screens
-  const isOnboarding = currentScreen.startsWith('onboarding_');
-  if (isOnboarding) return null;
+  // Hide bottom nav in deep onboarding, transfer confirmations, and modal settings
+  const isExcluded =
+    currentScreen.startsWith('onboarding_') ||
+    currentScreen === 'transfer_review' ||
+    currentScreen === 'transfer_success' ||
+    currentScreen === 'alert_settings';
+  if (isExcluded) return null;
 
   const tabs: { id: ScreenId; label: string; icon: string; badge?: number }[] = [
     { id: 'home', label: 'Home', icon: 'grid_view' },
-    { id: 'family', label: 'Family', icon: 'group' },
-    { id: 'tasks', label: 'Tasks', icon: 'assignment_turned_in', badge: tasksBadgeCount },
-    { id: 'payments', label: 'Payments', icon: 'sync_alt' },
-    { id: 'insights', label: 'Insights', icon: 'pie_chart' },
+    { id: 'approvals', label: 'Approvals', icon: 'sync_alt', badge: 3 },
+    { id: 'insights', label: 'Insights', icon: 'trending_up' },
+    { id: 'alerts', label: 'Alerts', icon: 'notifications', badge: 2 },
+    { id: 'goals', label: 'Goals', icon: 'flag' },
   ];
 
   const getIsActive = (tabId: ScreenId) => {
-    if (tabId === 'family') {
-      return currentScreen === 'family' || currentScreen === 'child_luca' || currentScreen === 'spending_limits' || currentScreen === 'configure_app';
+    if (tabId === 'home') {
+      return currentScreen === 'home' || currentScreen === 'family';
     }
-    if (tabId === 'tasks') {
-      return currentScreen === 'tasks' || currentScreen === 'approvals';
+    if (tabId === 'approvals') {
+      return currentScreen === 'approvals' || currentScreen === 'tasks';
+    }
+    if (tabId === 'insights') {
+      return currentScreen === 'insights';
+    }
+    if (tabId === 'alerts') {
+      return currentScreen === 'alerts';
+    }
+    if (tabId === 'goals') {
+      return currentScreen === 'goals';
     }
     return currentScreen === tabId;
   };

@@ -19,8 +19,13 @@ export const Header: React.FC<HeaderProps> = ({
   const isSubScreen = [
     'child_luca',
     'approvals',
+    'payments',
+    'transfer_review',
+    'transfer_success',
     'spending_limits',
     'configure_app',
+    'goals',
+    'alert_settings',
     'onboarding_welcome',
     'onboarding_enrolment',
     'onboarding_link_profile',
@@ -37,15 +42,25 @@ export const Header: React.FC<HeaderProps> = ({
       case 'family':
         return 'Family';
       case 'child_luca':
-        return 'Luca Borg';
+        return "Luca's Card";
       case 'tasks':
         return 'Tasks';
       case 'approvals':
         return 'Approvals';
       case 'payments':
-        return 'Payments';
+        return 'Fund Transfer';
+      case 'transfer_review':
+        return 'Review Transfer';
+      case 'transfer_success':
+        return 'Family Transfer';
       case 'insights':
-        return 'Insights';
+        return 'Child Insights';
+      case 'goals':
+        return 'Child Goals';
+      case 'alerts':
+        return 'Family Notifications';
+      case 'alert_settings':
+        return 'Alert Settings & Guardrails';
       case 'spending_limits':
         return 'Spending Limits';
       case 'configure_app':
@@ -76,8 +91,16 @@ export const Header: React.FC<HeaderProps> = ({
       currentScreen === 'configure_app'
     ) {
       onNavigate('family');
+    } else if (currentScreen === 'alert_settings') {
+      onNavigate('alerts');
+    } else if (currentScreen === 'goals') {
+      onNavigate('home');
+    } else if (currentScreen === 'transfer_review') {
+      onNavigate('payments');
+    } else if (currentScreen === 'transfer_success') {
+      onNavigate('home');
     } else if (currentScreen === 'approvals') {
-      onNavigate('tasks');
+      onNavigate('home');
     } else if (currentScreen.startsWith('onboarding_')) {
       onNavigate('home');
     } else {
@@ -88,11 +111,16 @@ export const Header: React.FC<HeaderProps> = ({
   const allScreens: { id: ScreenId; label: string; group: string; badge?: string }[] = [
     { id: 'home', label: 'Home - Family Hub', group: 'Primary App' },
     { id: 'family', label: 'My Family & Children', group: 'Primary App' },
-    { id: 'child_luca', label: "Luca's Card & Controls", group: 'Primary App', badge: 'Active Card' },
+    { id: 'child_luca', label: "Luca's Card (Controls & Limits)", group: 'Primary App', badge: 'Screen 1' },
+    { id: 'approvals', label: 'Approvals (3DS Checkout)', group: 'Primary App', badge: 'Screen 2' },
+    { id: 'payments', label: 'Transfer to Child (Keypad & SEPA)', group: 'Primary App', badge: 'Screen 3' },
+    { id: 'transfer_review', label: 'Review & Confirm Transfer (PSD2)', group: 'Transfers', badge: 'Screen 4' },
+    { id: 'transfer_success', label: 'Transfer Completed (Receipt)', group: 'Transfers', badge: 'Screen 5' },
     { id: 'tasks', label: 'Tasks & Chores Manager', group: 'Primary App' },
-    { id: 'approvals', label: 'Approvals & Requests Queue', group: 'Primary App', badge: '2 Pending' },
-    { id: 'payments', label: 'Send Money & Allowance', group: 'Primary App' },
-    { id: 'insights', label: 'Insights & Savings Goals', group: 'Primary App' },
+    { id: 'insights', label: 'Child Insights & Category Breakdown', group: 'Primary App', badge: 'New Screen' },
+    { id: 'goals', label: 'Child Goals (Luca & Sofia Vaults)', group: 'Primary App', badge: 'New Screen' },
+    { id: 'alerts', label: 'Family Notifications & Events Feed', group: 'Primary App', badge: 'New Screen' },
+    { id: 'alert_settings', label: 'Alert Settings & Guardrails', group: 'Controls & Security', badge: 'New Screen' },
     { id: 'spending_limits', label: "Luca's Spending Limits", group: 'Controls & Security' },
     { id: 'configure_app', label: "Configure Luca's App (Live Simulator)", group: 'Controls & Security', badge: 'Interactive' },
     { id: 'onboarding_welcome', label: '1. Welcome & Habits Overview', group: 'Onboarding Flow' },
@@ -163,7 +191,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Notification bell */}
             <button
               type="button"
-              onClick={() => setShowNotifications(!showNotifications)}
+              onClick={() => onNavigate('alerts')}
               aria-label="Notifications"
               className="relative w-10 h-10 rounded-full flex items-center justify-center text-[#43474e] hover:bg-[#e5eeff] transition-colors"
             >
@@ -174,6 +202,17 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#fc6959]"></span>
                 </span>
               )}
+            </button>
+
+            {/* Settings button (Image 1, 2, 5) */}
+            <button
+              type="button"
+              onClick={() => onNavigate('alert_settings')}
+              aria-label="Guardrail Settings"
+              title="Alert Settings & Guardrails"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-[#43474e] hover:bg-[#e5eeff] transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px]">tune</span>
             </button>
 
             {/* Maria's profile */}
